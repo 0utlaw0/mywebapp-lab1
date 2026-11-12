@@ -13,7 +13,7 @@ def parse_args(argv=None):
     p.add_argument("--db-host", default="127.0.0.1")
     p.add_argument("--db-port", type=int, default=3306)
     p.add_argument("--db-user", required=True)
-    p.add_argument("--db-password", default="")
+    p.add_argument("--db-password", default=os.environ.get("DB_PASSWORD", ""))
     p.add_argument("--db-name", required=True)
     return p.parse_args(argv)
 
