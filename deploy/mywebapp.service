@@ -1,6 +1,7 @@
 [Unit]
 Description=mywebapp Notes Service
-After=network.target mariadb.service
+Requires=mywebapp.socket
+After=network.target mariadb.service mywebapp.socket
 Wants=mariadb.service
 
 [Service]
@@ -18,6 +19,3 @@ ExecStart=/opt/mywebapp/venv/bin/python server.py \
     --db-user ${DB_USER} --db-password ${DB_PASSWORD} --db-name ${DB_NAME}
 Restart=on-failure
 RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
