@@ -165,6 +165,11 @@ sudo -u operator sudo -n systemctl stop nginx; echo "operator stop nginx: $?"
 systemctl is-active nginx
 sudo systemctl restart mywebapp
 sudo mysql mywebapp -e "SELECT * FROM schema_version;"
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5200/health/ready
+ps aux | grep '[s]erver.py'
+sudo -u operator sudo -n systemctl stop mywebapp.socket; echo $?
+sudo -u operator sudo -n systemctl start mywebapp.socket; echo $?
+sudo ss -ltnp | grep 5200
 ```
 
 Вивід:
@@ -194,6 +199,13 @@ active
 +---------+
 |       1 |
 +---------+
+200
+mywebapp    2253  0.9  1.6  43028 33472 ?        Ss   22:10   0:00 /opt/mywebapp/venv/bin/python server.py --host 127.0.0.1 --port 5200 --db-host 127.0.0.1 --db-port 3306 --db-user mywebapp --db-name mywebapp
+mywebapp    2254  0.0  1.4  43200 29068 ?        S    22:10   0:00 /opt/mywebapp/venv/bin/python server.py --host 127.0.0.1 --port 5200 --db-host 127.0.0.1 --db-port 3306 --db-user mywebapp --db-name mywebapp
+mywebapp    2300  0.0  1.4  43204 29104 ?        S    22:10   0:00 /opt/mywebapp/venv/bin/python server.py --host 127.0.0.1 --port 5200 --db-host 127.0.0.1 --db-port 3306 --db-user mywebapp --db-name mywebapp
+0
+0
+LISTEN 0      4096        127.0.0.1:5200       0.0.0.0:*    users:(("systemd",pid=1,fd=85))
 ```
 
 Інтерпретація результатів:
@@ -202,6 +214,9 @@ active
 - **Мережа.** Застосунок (5200) і MariaDB (3306) слухають лише `127.0.0.1`, а nginx (80) приймає з'єднання на всіх інтерфейсах. Це відповідає вимогам до мережевих обмежень.
 - **Health-check.** `/health/ready` повертає 200, коли БД працює, 500 після зупинки MariaDB і знову 200 після її запуску. Отже, застосунок коректно відновлює підключення без перезапуску.
 - **Права `operator`.** Дозволені команди (`restart mywebapp`, `reload nginx`) виконуються з кодом 0. Команда `stop nginx` не входить до списку дозволених, тому `sudo` вимагає пароль і завершується з кодом 1. Nginx при цьому лишається `active`.
-- **Секрети.** Звичайний користувач не може прочитати `/etc/mywebapp/db.env`.
+- **Секрети.** Звичайний користувач не може прочитати `/etc/mywebapp/db.env`, а пароль БД не видно й у виводі `ps`.
 - **Міграція.** Після повторного запуску сервісу в таблиці `schema_version` лишається один запис, тобто `migrate.py` ідемпотентний.
 - **API.** Створення нотатки повертає 201, порожній `title` дає 400, список і окрема нотатка віддаються і в JSON, і в HTML залежно від `Accept`.
+- **Керування сокетом.** `operator` зупиняє і запускає `mywebapp.socket` через sudo, обидві команди завершуються з кодом 0.
+- **Пароль БД.** У командному рядку процесів `server.py` у виводі `ps` аргументу `--db-password` немає: пароль передається через змінну оточення з `db.env`.
+- **Socket activation.** Порт 5200 на `127.0.0.1` слухає процес `systemd` (pid=1), а не gunicorn, тобто сокет створює саме systemd.
