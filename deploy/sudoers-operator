@@ -2,4 +2,8 @@ operator ALL=(root) NOPASSWD: /usr/bin/systemctl start mywebapp, \
     /usr/bin/systemctl stop mywebapp, \
     /usr/bin/systemctl restart mywebapp, \
     /usr/bin/systemctl status mywebapp, \
+    /usr/bin/systemctl start mywebapp.socket, \
+    /usr/bin/systemctl stop mywebapp.socket, \
+    /usr/bin/systemctl restart mywebapp.socket, \
+    /usr/bin/systemctl status mywebapp.socket, \
     /usr/bin/systemctl reload nginx
