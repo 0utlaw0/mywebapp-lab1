@@ -18,7 +18,7 @@ Notes Service зберігає текстові нотатки. Кожна но�
 
 ### Структура репозиторію
 
-Каталог `app/` містить `mywebapp.py` (застосунок), `migrate.py` (скрипт міграції БД), `server.py` (запуск через gunicorn) і `requirements.txt`. Каталог `deploy/` містить `install.sh`, `mywebapp.service`, `mywebapp.socket`, `nginx-mywebapp.conf` та `sudoers-operator`. Каталог `docs/` зарезервований для додаткової документації.
+Каталог `app/` містить `mywebapp.py` (застосунок), `migrate.py` (скрипт міграції БД), `server.py` (запуск через gunicorn) і `requirements.txt`. Каталог `deploy/` містить `install.sh`, `mywebapp.service`, `mywebapp.socket`, `nginx-mywebapp.conf` та `sudoers-operator`.
 
 ### Налаштування середовища для розробки
 
@@ -69,7 +69,11 @@ curl -H "Accept: text/html" http://<host>/notes/1
 
 ### Віртуальна машина
 
-Використовується офіційний образ Ubuntu Server 24.04 LTS з сайту https://ubuntu.com/download/server. Рекомендовані ресурси ВМ: 2 vCPU, 2 ГБ RAM і 20 ГБ диска. Окремої розбивки диска не потрібно, достатньо розмітки за замовчуванням. Під час встановлення бажано ввімкнути OpenSSH server, а мережу ВМ налаштувати так, щоб хост мав до неї доступ (режим bridged або port forwarding на порт 22 і 80). Гіпервізор: `VirtualBox`.
+Використовується офіційний образ Ubuntu Server 24.04 LTS з сайту https://ubuntu.com/download/server. Рекомендовані ресурси ВМ: 2 vCPU, 2 ГБ RAM і 20 ГБ диска. Окремої розбивки диска не потрібно, достатньо розмітки за замовчуванням. Під час встановлення бажано ввімкнути OpenSSH server, а мережа ВМ складається з двох адаптерів VirtualBox:
+- Adapter 1: NAT, використовується лише для виходу ВМ в інтернет (встановлення пакетів).
+  Проброс портів не налаштовувався;
+- Adapter 2: Host-Only Adapter зі статичною адресою 192.168.106.10. Через нього хост
+  підключається до ВМ: SSH (192.168.106.10:22) і HTTP (http://192.168.106.10/).
 
 ### Вхід на ВМ
 
@@ -104,12 +108,14 @@ sudo bash deploy/install.sh
 
 Перевірте міграцію: повторний запуск `sudo systemctl restart mywebapp` не повинен давати помилок, а в БД після двох запусків має бути один запис у `schema_version`.
 
-Перевірте користувачів: `cat /home/student/gradebook` виводить 6; вхід під student і teacher вимагає зміни пароля 12345678 і дозволяє `sudo`; під operator команда `sudo systemctl restart mywebapp` працює без пароля, а, наприклад, `sudo systemctl stop nginx` або `sudo cat /etc/shadow` відхиляється. Спроба увійти під дефолтним користувачем має завершуватися відмовою. Файл `/etc/mywebapp/db.env` має права 640 і групу mywebapp: `ls -l /etc/mywebapp/db.env`.
+Перевірте користувачів: `cat /home/student/gradebook` виводить 6; вхід під student і teacher вимагає зміни пароля 12345678 і дозволяє `sudo`; під operator команда `sudo systemctl restart mywebapp` працює без пароля, а, наприклад, `sudo systemctl stop nginx` або `sudo cat /etc/shadow` відхиляється. Спроба увійти під дефолтним користувачем має завершуватися відмовою. Файл `/etc/mywebapp/db.env` має права 640 і групу mywebapp: `sudo ls -l /etc/mywebapp/db.env`.
 
 Перевірте доступність БД: `ss -ltnp | grep 3306` має показувати прослуховування лише 127.0.0.1, а `ss -ltnp | grep 5200` також лише 127.0.0.1, при цьому порт 80 слухає на 0.0.0.0. Нарешті, перегляньте журнал запитів: `sudo tail /var/log/nginx/mywebapp_access.log`.
+
 ## 5. Результати тестування
 
-Розгортання виконано на віртуальній машині у VirtualBox з Ubuntu Server 24.04 LTS. Мережа ВМ працює в режимі `NAT`, IP-адреса ВМ під час перевірки: 192.168.106.10. Дефолтним користувачем при встановленні ОС був `vboxuser`.
+Розгортання виконано на віртуальній машині у VirtualBox з Ubuntu Server 24.04 LTS. Мережа ВМ: Adapter 1 NAT (лише вихід в інтернет), Adapter 2 Host-Only зі статичною
+адресою 192.168.106.10. Запити з хоста в п. 5.2 надсилались на http://192.168.106.10/. 
 
 Скрипт `deploy/install.sh` відпрацював до кінця. Його вбудовані smoke-тести повернули код 200 для `/`, 200 для `/notes` та 404 для `/health/alive` через nginx. Під час першого запуску скрипт зупинився на створенні користувача `operator`, бо в Ubuntu вже існує системна група з такою назвою. Це виправлено окремим комітом, після чого повторний запуск пройшов успішно, що також підтверджує ідемпотентність скрипта.
 
@@ -129,6 +135,12 @@ sudo bash deploy/install.sh
 | `GET /notes/<неіснуючий id>` | 404 |
 | `GET /notes` з `Accept: text/plain` | 406 |
 | `GET /health/alive` | 404 (закритий nginx-ом назовні) |
+| `POST /notes` (title і content заповнені) | 201 |
+| `POST /notes` (порожній title) | 400 |
+| `GET /notes` з `Accept: application/json` | 200 |
+| `GET /notes` з `Accept: text/html` | 200 |
+| `GET /notes/1` з `Accept: application/json` | 200 |
+| `GET /notes/1` з `Accept: text/html` | 200 |
 
 ### 5.3. Перевірка на самій ВМ
 
@@ -139,6 +151,7 @@ sudo whoami
 systemctl is-active mywebapp.socket nginx mariadb
 cat /home/student/gradebook
 ls -l /etc/mywebapp/db.env
+sudo ls -l /etc/mywebapp/db.env
 ss -ltn | grep -E ':80 |:5200|:3306'
 curl -s -o /dev/null -w "ready: %{http_code}\n" http://127.0.0.1:5200/health/ready
 sudo systemctl stop mariadb
@@ -150,6 +163,8 @@ sudo -u operator sudo -n systemctl restart mywebapp; echo "operator restart: $?"
 sudo -u operator sudo -n systemctl reload nginx; echo "operator reload: $?"
 sudo -u operator sudo -n systemctl stop nginx; echo "operator stop nginx: $?"
 systemctl is-active nginx
+sudo systemctl restart mywebapp
+sudo mysql mywebapp -e "SELECT * FROM schema_version;"
 ```
 
 Вивід:
@@ -161,6 +176,7 @@ active
 active
 6
 ls: cannot access '/etc/mywebapp/db.env': Permission denied
+-rw-r----- 1 root mywebapp 79 Nov 12 21:13 /etc/mywebapp/db.env
 LISTEN 0      2048        127.0.0.1:5200       0.0.0.0:*
 LISTEN 0      80          127.0.0.1:3306       0.0.0.0:*
 LISTEN 0      511           0.0.0.0:80         0.0.0.0:*
@@ -173,6 +189,11 @@ operator reload: 0
 sudo: a password is required
 operator stop nginx: 1
 active
++---------+
+| version |
++---------+
+|       1 |
++---------+
 ```
 
 Інтерпретація результатів:
@@ -182,3 +203,5 @@ active
 - **Health-check.** `/health/ready` повертає 200, коли БД працює, 500 після зупинки MariaDB і знову 200 після її запуску. Отже, застосунок коректно відновлює підключення без перезапуску.
 - **Права `operator`.** Дозволені команди (`restart mywebapp`, `reload nginx`) виконуються з кодом 0. Команда `stop nginx` не входить до списку дозволених, тому `sudo` вимагає пароль і завершується з кодом 1. Nginx при цьому лишається `active`.
 - **Секрети.** Звичайний користувач не може прочитати `/etc/mywebapp/db.env`.
+- **Міграція.** Після повторного запуску сервісу в таблиці `schema_version` лишається один запис, тобто `migrate.py` ідемпотентний.
+- **API.** Створення нотатки повертає 201, порожній `title` дає 400, список і окрема нотатка віддаються і в JSON, і в HTML залежно від `Accept`.
