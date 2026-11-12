@@ -1,0 +1,5 @@
+operator ALL=(root) NOPASSWD: /usr/bin/systemctl start mywebapp, \
+    /usr/bin/systemctl stop mywebapp, \
+    /usr/bin/systemctl restart mywebapp, \
+    /usr/bin/systemctl status mywebapp, \
+    /usr/bin/systemctl reload nginx
