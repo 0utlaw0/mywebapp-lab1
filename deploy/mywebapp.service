@@ -12,10 +12,10 @@ WorkingDirectory=/opt/mywebapp
 EnvironmentFile=/etc/mywebapp/db.env
 ExecStartPre=/opt/mywebapp/venv/bin/python migrate.py \
     --db-host 127.0.0.1 --db-port 3306 \
-    --db-user ${DB_USER} --db-password ${DB_PASSWORD} --db-name ${DB_NAME}
+    --db-user ${DB_USER} --db-name ${DB_NAME}
 ExecStart=/opt/mywebapp/venv/bin/python server.py \
     --host 127.0.0.1 --port 5200 \
     --db-host 127.0.0.1 --db-port 3306 \
-    --db-user ${DB_USER} --db-password ${DB_PASSWORD} --db-name ${DB_NAME}
+    --db-user ${DB_USER} --db-name ${DB_NAME}
 Restart=on-failure
 RestartSec=3
