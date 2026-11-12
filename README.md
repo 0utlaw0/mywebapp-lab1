@@ -107,3 +107,45 @@ sudo bash deploy/install.sh
 Перевірте користувачів: `cat /home/student/gradebook` виводить 6; вхід під student і teacher вимагає зміни пароля 12345678 і дозволяє `sudo`; під operator команда `sudo systemctl restart mywebapp` працює без пароля, а, наприклад, `sudo systemctl stop nginx` або `sudo cat /etc/shadow` відхиляється. Спроба увійти під дефолтним користувачем має завершуватися відмовою. Файл `/etc/mywebapp/db.env` має права 640 і групу mywebapp: `ls -l /etc/mywebapp/db.env`.
 
 Перевірте доступність БД: `ss -ltnp | grep 3306` має показувати прослуховування лише 127.0.0.1, а `ss -ltnp | grep 5200` також лише 127.0.0.1, при цьому порт 80 слухає на 0.0.0.0. Нарешті, перегляньте журнал запитів: `sudo tail /var/log/nginx/mywebapp_access.log`.
+
+## 5. Результати тестування
+
+Розгортання виконано на віртуальній машині у VirtualBox з Ubuntu Server 24.04 LTS, мережа ВМ у режимі `<NAT / Bridged>`, IP-адреса ВМ під час перевірки 192.168.106.10. Дефолтним користувачем при встановленні ОС був `vboxuser`. Скрипт `deploy/install.sh` відпрацював до кінця, а його власні smoke-тести повернули код 200 для `/`, 200 для `/notes` і 404 для `/health/alive` через nginx. Під час першого запуску скрипт зупинився на створенні користувача operator, бо в Ubuntu вже існує системна група з такою назвою; це виправлено окремим комітом, після чого повторний запуск пройшов успішно, що також підтверджує ідемпотентність скрипта.
+
+Вхід під користувачем student за паролем 12345678 спрацював, система одразу зажадала змінити пароль, після чого команда `sudo` працює. Спроба входу під дефолтним користувачем `vboxuser` завершується відмовою `Permission denied` незалежно від введеного пароля, тобто блокування працює. Запити до застосунку через nginx з хост-машини повертають очікувані результати: запит до неіснуючої нотатки дає 404, запит з `Accept: text/plain` дає 406, а `/health/alive` назовні закритий і дає 404 від nginx. Знімки екрана цих перевірок збережено в каталозі `docs/` (`docs/<ім'я-файлу>.png`).
+Приклад виконання запитів:
+Приклад:
+sudo whoami
+systemctl is-active mywebapp.socket nginx mariadb
+cat /home/student/gradebook
+ls -l /etc/mywebapp/db.env
+ss -ltn | grep -E ':80 |:5200|:3306'
+curl -s -o /dev/null -w "ready: %{http_code}\n" http://127.0.0.1:5200/health/ready
+sudo systemctl stop mariadb
+curl -s -o /dev/null -w "ready without db: %{http_code}\n" http://127.0.0.1:5200/health/ready
+sudo systemctl start mariadb
+sleep 3
+curl -s -o /dev/null -w "ready again: %{http_code}\n" http://127.0.0.1:5200/health/ready
+sudo -u operator sudo -n systemctl restart mywebapp; echo "operator restart: $?"
+sudo -u operator sudo -n systemctl reload nginx; echo "operator reload: $?"
+sudo -u operator sudo -n systemctl stop nginx; echo "operator stop nginx: $?"
+systemctl is-active nginx
+Вивід:
+root
+active
+active
+active
+6
+ls: cannot access '/etc/mywebapp/db.env': Permission denied
+LISTEN 0      2048        127.0.0.1:5200       0.0.0.0:*          
+LISTEN 0      80          127.0.0.1:3306       0.0.0.0:*          
+LISTEN 0      511           0.0.0.0:80         0.0.0.0:*          
+LISTEN 0      511              [::]:80            [::]:*          
+ready: 200
+ready without db: 500
+ready again: 200
+operator restart: 0
+operator reload: 0
+sudo: a password is required
+operator stop nginx: 1
+active
