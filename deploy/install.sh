@@ -29,7 +29,11 @@ log "Creating users"
 create_login_user() {
     local name=$1 admin=$2
     if ! id "$name" >/dev/null 2>&1; then
-        useradd --create-home --shell /bin/bash "$name"
+        if getent group "$name" >/dev/null; then
+            useradd --create-home --shell /bin/bash -g "$name" "$name"
+        else
+            useradd --create-home --shell /bin/bash "$name"
+        fi
         echo "$name:$DEFAULT_PASSWORD" | chpasswd
         chage -d 0 "$name"
     fi
