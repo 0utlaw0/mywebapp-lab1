@@ -1,5 +1,5 @@
-"""mywebapp - Notes Service."""
 import argparse
+import os
 import sys
 
 import pymysql
