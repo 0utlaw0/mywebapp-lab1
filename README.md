@@ -35,7 +35,7 @@ pip install -r requirements.txt # на Windows: pip install Flask PyMySQL
 
 ### Запуск застосунку
 
-Уся конфігурація передається аргументами командного рядка. Обов'язкові аргументи лише `--db-user` і `--db-name`, решта має значення за замовчуванням: `--host 127.0.0.1`, `--port 5200`, `--db-host 127.0.0.1`, `--db-port 3306` і порожній `--db-password`. Спочатку виконується міграція, потім запускається застосунок:
+Уся конфігурація передається аргументами командного рядка. Обов'язкові аргументи лише `--db-user` і `--db-name`, решта має значення за замовчуванням: `--host 127.0.0.1`, `--port 5200`, `--db-host 127.0.0.1`, `--db-port 3306` і `--db-password`, який за замовчуванням береться зі змінної оточення `DB_PASSWORD` (або порожній, якщо її немає) У production пароль передається через змінну оточення з файлу /etc/mywebapp/db.env, а не аргументом командного рядка, щоб він не з'являвся у виводі ps і systemctl status.
 
 ```
 python migrate.py --db-user USER --db-password PASS --db-name NAME
@@ -77,7 +77,7 @@ curl -H "Accept: text/html" http://<host>/notes/1
 
 ### Вхід на ВМ
 
-Початковий вхід виконується через консоль гіпервізора або по SSH під користувачем, якого ви створили під час встановлення ОС: `vboxuser` з паролем `vboxuser`. Після виконання скрипта цей користувач блокується, і далі входити потрібно під користувачами student, teacher або operator з початковим паролем 12345678, який система зажадає змінити при першому вході.
+Початковий вхід виконується через консоль гіпервізора або по SSH під користувачем, якого ви створили під час встановлення ОС: `vboxuser` з паролем `vboxuser`. Після виконання скрипта цей користувач блокується, і далі входити потрібно під користувачами student, teacher або operator з початковим паролем 12345678, який система зажадає змінити при першому вході. Через socket activation зупинка лише сервісу тимчасова: наступний запит до порту 5200 знову його запускає. Щоб зупинити застосунок повністю, operator виконує sudo systemctl stop mywebapp.socket (зупиняє і сокет, і сервіс), а запускає через sudo systemctl start mywebapp.socket.
 
 ### Запуск автоматизації
 
@@ -165,6 +165,11 @@ sudo -u operator sudo -n systemctl stop nginx; echo "operator stop nginx: $?"
 systemctl is-active nginx
 sudo systemctl restart mywebapp
 sudo mysql mywebapp -e "SELECT * FROM schema_version;"
+sudo -u operator sudo -n systemctl stop mywebapp.socket; echo "operator stop socket: $?"
+curl -s -o /dev/null -w "after stop: %{http_code}\n" http://127.0.0.1:5200/health/alive
+sudo -u operator sudo -n systemctl start mywebapp.socket; echo "operator start socket: $?"
+curl -s -o /dev/null -w "after start: %{http_code}\n" http://127.0.0.1:5200/health/alive
+ps aux | grep '[s]erver.py'
 ```
 
 Вивід:
